@@ -1,0 +1,33 @@
+final as (
+    select
+        visit_id,
+        coalesce(visit_date, stats_date) as visit_date,
+        case
+            when visit_id is null then 1
+            else row_number() over (partition by visit_id)
+        end as n_visit,
+        --visits,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        row_number() over (partition by transaction_id) as n_transaction,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        coalesce(click_cost_rub, 0) + coalesce(Ad_cost_rub, 0) as total_cost_rub,
+        coalesce(click_cost_usd, 0) + coalesce(Ad_cost_usd, 0) as total_cost_usd
+    from pre_final
+)
+
+select * from final
