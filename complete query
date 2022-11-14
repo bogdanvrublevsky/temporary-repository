@@ -1,0 +1,651 @@
+{{
+    config(
+        cluster_by = ['visit_id','transaction_id']
+    )
+}}
+
+with t1 as (
+    select 
+        visit_id,
+        anchor__visit.visit_timestamp,
+        ga_user__visit.ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_id as guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country
+    from {{ref ('anchor__visit')}} anchor__visit
+    left join {{ref ('link__ga_user__made__visit')}} ga_user__visit using (visit_id)
+    left join {{ref ('link__ga_user__made__ga_event_v2')}} ga_user__event 
+        on ga_event_date = date(anchor__visit.visit_timestamp) and ga_user__visit.ga_user_id = ga_user__event.ga_user_id
+        
+    left join {{ref ('link__visit__resulted_success__transaction')}} using (visit_id)
+    left join {{ref ('link__backend_user__made__transactions')}} using (transaction_id)
+
+    left join {{ref ('guest_user_other_ids')}} guest_user
+        on ga_user__visit.ga_user_id = guest_user.ga_user_id
+        
+    left join {{ref ('link__transaction__has__product')}} using (transaction_id)
+    left join {{ref ('link__product__has__product_type')}} using (product_id)
+    left join {{ref ('link__product__to__country')}} using (product_id)
+
+),
+
+t2 as (
+    select
+        visit_id,
+        visit_timestamp,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        adwordsAd_click_cost_rub,
+        adwordsAd_click_cost_usd,
+    from t1
+    left join {{ref ('link__adwordsAd__gave__visit_v2')}} using (visit_id)
+    full join {{ref ('anchor__adwordsAd')}} using (adwordsAd_id)
+    left join {{ref ('link__adwordsAdGroup__has__adwordsAd')}} using (adwordsAd_id)     
+    left join {{ref ('link__adwordsСampaign__has__adwordsAdGroup')}} using (adwordsAdGroup_id)
+),
+
+t3 as (
+    select 
+        visit_id,
+        visit_timestamp,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        adwordsAd_click_cost_rub,
+        adwordsAd_click_cost_usd,
+        manualCampaign_click_cost_rub,
+        manualCampaign_click_cost_usd,
+    from t2
+    left join {{ref ('link__manualCampaign__gave__visit_v2')}} using (visit_id)
+    full join {{ref ('anchor__manualCampaign')}} using (manualCampaign_id)
+),
+
+t4 as (
+    select 
+        visit_id,
+        visit_timestamp,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        adwordsAd_click_cost_rub,
+        adwordsAd_click_cost_usd,
+        manualCampaign_click_cost_rub,
+        manualCampaign_click_cost_usd,
+        vkManualCampaign_click_cost_rub,
+        vkManualCampaign_click_cost_usd,
+    from t3
+    left join {{ref ('link__vkManualCampaign__gave__visit_v2')}} using (visit_id)
+    full join {{ref ('anchor__vkManualCampaign')}} using (vkManualCampaign_id)
+),
+
+t5 as (
+    select
+        visit_id,
+        visit_timestamp,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        adwordsAd_click_cost_rub,
+        adwordsAd_click_cost_usd,
+        manualCampaign_click_cost_rub,
+        manualCampaign_click_cost_usd,
+        vkManualCampaign_click_cost_rub,
+        vkManualCampaign_click_cost_usd,
+        yandexManualCampaign_click_cost_rub,
+        yandexManualCampaign_click_cost_usd,
+    from t4
+    left join {{ref ('link__yandexManualCampaign__gave__visit_v2')}} using (visit_id)
+    full join {{ref ('anchor__yandexManualCampaign')}} using (yandexManualCampaign_id)
+
+),
+
+t6 as (
+    select
+        visit_id,
+        --count(visit_id) over (partition by visit_id) as visits,
+        date(visit_timestamp) as visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+
+        (coalesce(adwordsAd_click_cost_rub, 0) +
+            coalesce(manualCampaign_click_cost_rub, 0) +
+            coalesce(vkManualCampaign_click_cost_rub, 0) +
+            coalesce(yandexManualCampaign_click_cost_rub, 0)
+        ) as click_cost_rub,
+
+        (coalesce(adwordsAd_click_cost_usd, 0) +
+            coalesce(manualCampaign_click_cost_usd, 0) +
+            coalesce(vkManualCampaign_click_cost_usd, 0) +
+            coalesce(yandexManualCampaign_click_cost_usd, 0)
+        ) as click_cost_usd,
+    from t5
+),
+---final_v1
+t7 as (
+    select
+        visit_id,
+        visit_date,
+        --visits,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        --cast(round(click_cost_rub / nullif(visits, 0), 2) as float64) as click_cost_rub,
+        --cast(round(click_cost_usd / nullif(visits, 0), 2) as float64) as click_cost_usd,
+        click_cost_rub,
+        click_cost_usd
+    from t6
+),
+---
+
+with_visits as (
+    select
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        date(null) as stats_date,
+        0 as Ad_cost_rub,
+        0 as Ad_cost_usd
+    from t7
+    where visit_id is not null
+),
+
+adwords_no_visits as (
+    select
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd
+    from t7
+    where visit_id is null and adwordsAd_id is not null
+),
+
+adwords_no_visits_t2 as (
+    select 
+        visit_id,
+        visit_date,
+        --visits,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        adwordsAd_stats_date as stats_date,
+        adwordsAd_stats_cost_rub as Ad_cost_rub,
+        adwordsAd_stats_cost_usd as Ad_cost_usd
+    from adwords_no_visits
+    left join {{ref ('link__adwordsAd__has__adwordsAd_stats')}} using (adwordsAd_id)
+    left join {{ref ('calc__adwordsAd_stats__adwordsAd_stats_cost_rub')}} using (adwordsAd_stats_id)
+    left join {{ref ('calc__adwordsAd_stats__adwordsAd_stats_cost_usd')}} using (adwordsAd_stats_id)
+
+    where concat(adwordsAd_id, adwordsAd_stats_date) not in 
+        (select
+            concat(adwordsAd_id, visit_date) 
+        from with_visits
+        where concat(adwordsAd_id, visit_date) is not null)
+    
+),
+
+manualCampaign_no_visits as (
+    select
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd
+    from t7
+    where visit_id is null and manualCampaign_id is not null
+),
+
+manualCampaign_no_visits_t2 as (
+    select
+        visit_id,
+        visit_date,
+        --visits,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        date(null) as stats_date,
+        --manualCampaign_length_days as stats_date,
+        (1000000 * manualCampaign_length_days * manualCampaign_cost_per_day_rub) as Ad_cost_rub,
+        (1000000 * manualCampaign_length_days * manualCampaign_cost_per_day_usd) as Ad_cost_usd
+    from manualCampaign_no_visits
+    left join {{ref ('calc__manualCampaign__manualCampaign_length_days')}} using (manualCampaign_id)
+    left join {{ref ('calc__manualCampaign__manualCampaign_cost_per_day_rub')}} using (manualCampaign_id)
+    left join {{ref ('calc__manualCampaign__manualCampaign_cost_per_day_usd')}} using (manualCampaign_id)
+    where manualCampaign_id not in 
+        (select manualCampaign_id 
+        from with_visits 
+        where manualCampaign_id is not null)
+),
+
+vkManualCampaign_no_visits as (
+    select
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd
+    from t7
+    where visit_id is null and vkManualCampaign_id is not null
+),
+
+vkManualCampaign_no_visits_t2 as (
+    select
+        visit_id,
+        visit_date,
+        --visits,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        l.vkManualCampaign_stats_date as stats_date,
+        1000000 * vkManualCampaign_stats_cost_rub as Ad_cost_rub,
+        1000000 * vkManualCampaign_stats_cost_usd as Ad_cost_usd
+    from vkManualCampaign_no_visits
+    left join {{ref ('link__vkManualCampaign__has__vkManualCampaign_stats')}} l using (vkManualCampaign_id)
+    left join {{ref ('secondary__vkManualCampaign_stats')}} using (vkManualCampaign_stats_id)
+
+    where concat(vkManualCampaign_id, l.vkManualCampaign_stats_date) not in
+        (select
+            concat(vkManualCampaign_id, visit_date) 
+        from with_visits
+        where concat(vkManualCampaign_id, visit_date) is not null)
+
+),
+
+yandexManualCampaign_no_visits as (
+    select
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd
+    from t7
+    where visit_id is null and yandexManualCampaign_id is not null
+),
+
+yandexManualCampaign_no_visits_t2 as (
+    select
+        visit_id,
+        visit_date,
+        --visits,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        l.yandexManualCampaign_stats_date as stats_date,
+        yandexManualCampaign_stats_cost_rub as Ad_cost_rub,
+        yandexManualCampaign_stats_cost_usd as Ad_cost_usd
+    from yandexManualCampaign_no_visits
+    left join {{ref ('link__yandexManualCampaign__has__yandexManualCampaign_stats')}} l using (yandexManualCampaign_id)
+    left join {{ref ('secondary__yandexManualCampaign_stats')}} using (yandexManualCampaign_stats_id)
+
+    where concat(yandexManualCampaign_id, l.yandexManualCampaign_stats_date) not in 
+        (select
+            concat(yandexManualCampaign_id, visit_date) 
+        from with_visits
+        where concat(yandexManualCampaign_id, visit_date) is not null)
+),
+
+pre_final as (
+    select
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        stats_date,
+        Ad_cost_rub,
+        Ad_cost_usd
+    from with_visits
+    union all
+    select  
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        stats_date,
+        Ad_cost_rub,
+        Ad_cost_usd 
+    from adwords_no_visits_t2
+    union all
+    select
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        stats_date,
+        Ad_cost_rub,
+        Ad_cost_usd
+    from manualCampaign_no_visits_t2
+    union all
+    select
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        stats_date,
+        Ad_cost_rub,
+        Ad_cost_usd
+    from vkManualCampaign_no_visits_t2
+    union all
+    select
+        visit_id,
+        visit_date,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        stats_date,
+        Ad_cost_rub,
+        Ad_cost_usd
+    from yandexManualCampaign_no_visits_t2
+),
+
+-- add transaction number counting before final 
+-- take unique transaction_id and add a number to each
+-- then use join in pre final to add this numbers as n_transaction
+
+final as (
+    select
+        visit_id,
+        coalesce(visit_date, stats_date) as visit_date,
+        case
+            when visit_id is null then 1
+            else row_number() over (partition by visit_id)
+        end as n_visit,
+        --visits,
+        ga_user_id,
+        ga_user_is_lead,
+        ga_event_id,
+        transaction_id,
+        row_number() over (partition by transaction_id) as n_transaction,
+        guest_user_id,
+        backend_user_id,
+        product_id,
+        product_type_id,
+        country,
+        adwordsAd_id,
+        adwordsAdGroup_id,
+        adwordsCampaign_id,
+        manualCampaign_id,
+        vkManualCampaign_id,
+        yandexManualCampaign_id,
+        click_cost_rub,
+        click_cost_usd,
+        coalesce(click_cost_rub, 0) + coalesce(Ad_cost_rub, 0) as total_cost_rub,
+        coalesce(click_cost_usd, 0) + coalesce(Ad_cost_usd, 0) as total_cost_usd
+    from pre_final
+)
+
+select * from final
